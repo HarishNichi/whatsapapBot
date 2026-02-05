@@ -15,6 +15,36 @@ whatsapp.on('message', async (payload: any) => {
     const chat = await msg.getChat();
     const contact = await msg.getContact();
 
+    // Check for Commands (from ME)
+    if (msg.fromMe && msg.body.startsWith('/')) {
+        const command = msg.body.toLowerCase();
+        if (command.includes('status busy')) {
+            brain.setUserStatus('busy');
+            await msg.reply('✅ Status set to: BUSY');
+        } else if (command.includes('status available')) {
+            brain.setUserStatus('available');
+            await msg.reply('✅ Status set to: AVAILABLE');
+        } else if (command.includes('status')) {
+             await msg.reply(`ℹ️ Current Status: ${brain.getUserStatus()}`); // Need to add accessor to Brain
+        }
+        return;
+    }
+
+    // Check for Commands (from ME)
+    if (msg.fromMe && msg.body.startsWith('/')) {
+        const command = msg.body.toLowerCase();
+        if (command.includes('status busy')) {
+            brain.setUserStatus('busy');
+            await msg.reply('✅ Status set to: BUSY');
+        } else if (command.includes('status available')) {
+            brain.setUserStatus('available');
+            await msg.reply('✅ Status set to: AVAILABLE');
+        } else if (command.includes('status')) {
+             await msg.reply(`ℹ️ Current Status: ${brain.getUserStatus()}`); 
+        }
+        return;
+    }
+
     // Don't reply to groups for safety in MVP
     if (chat.isGroup) return;
 

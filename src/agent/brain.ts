@@ -18,6 +18,14 @@ export class AgentBrain {
         this.userStatus = status;
     }
 
+    public getUserStatus() {
+        return this.userStatus;
+    }
+
+    public getUserStatus() {
+        return this.userStatus;
+    }
+
     public async processMessage(platform: string, sender: string, content: string, history: any[] = []): Promise<string | null> {
         console.log(`[Brain] Processing ${platform} message from ${sender}`);
 

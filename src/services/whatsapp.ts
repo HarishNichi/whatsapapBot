@@ -34,8 +34,17 @@ export class WhatsAppService extends EventEmitter {
         });
 
         this.client.on('message_create', async (msg) => {
-            if (msg.fromMe) return; // Ignore own messages
-            console.log(`[WhatsApp] Message received from ${msg.from}`);
+            // Handle Self-Commands
+            if (msg.fromMe) {
+                if (msg.body.startsWith('/')) {
+                    console.log(`[WhatsApp] Self-Command received: ${msg.body}`);
+                    // Fallthrough to emit
+                } else {
+                    return; // Ignore regular self-messages
+                }
+            } else {
+                console.log(`[WhatsApp] Message received from ${msg.from}`);
+            }
             
             const chat = await msg.getChat();
             const history = await chat.fetchMessages({ limit: 10 });
