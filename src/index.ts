@@ -29,10 +29,16 @@ whatsapp.on('message', async (payload: any) => {
     }
 
     // Process with Brain
-    // Passing msg.from as the username/contact identifier
-    await brain.processMessage(msg, history || [], async (response) => {
-        await msg.reply(response);
-    });
+    const reply = await brain.processMessage(
+        'WhatsApp',
+        msg.from,
+        msg.body,
+        history || []
+    );
+
+    if (reply) {
+        await msg.reply(reply);
+    }
 });
 
 // Dummy HTTP Server for Render (Web Services must bind to a port)
