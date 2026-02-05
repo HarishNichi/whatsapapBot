@@ -92,7 +92,6 @@ export class WhatsAppService extends EventEmitter {
         });
 
 
-        
         console.log('[WhatsApp] Initializing client...');
         try {
             this.client.initialize().then(() => {
