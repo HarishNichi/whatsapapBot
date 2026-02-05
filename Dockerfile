@@ -28,7 +28,7 @@ RUN npm install
 
 # Copy source
 COPY src ./src
-COPY .env ./
+
 
 # Build
 RUN npm run build
