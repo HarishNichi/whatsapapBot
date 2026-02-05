@@ -67,7 +67,18 @@ export class WhatsAppService extends EventEmitter {
             this.emit('message', { msg, history });
         });
 
-        this.client.initialize();
+        });
+        
+        console.log('[WhatsApp] Initializing client...');
+        try {
+            this.client.initialize().then(() => {
+                console.log('[WhatsApp] Client initialize() call resolved.');
+            }).catch(err => {
+                console.error('[WhatsApp] Client initialize() FAILED:', err);
+            });
+        } catch (error) {
+            console.error('[WhatsApp] Unexpected error during initialize:', error);
+        }
     }
 
     public async sendMessage(chatId: string, content: string) {
