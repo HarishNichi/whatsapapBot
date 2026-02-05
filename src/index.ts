@@ -84,10 +84,18 @@ http.createServer(async (req, res) => {
         } catch (err) {
             res.end('Error generating QR code');
         }
-    } else {
+    } else if (whatsapp.isReady()) {
         res.end(`
             <div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;">
                 <h1>✅ Agent is Connected & Running!</h1>
+            </div>
+        `);
+    } else {
+        res.end(`
+            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;">
+                <h1>⏳ Agent is Initializing...</h1>
+                <p>Please wait 10-20 seconds and refresh.</p>
+                <p>Starting up the browser...</p>
             </div>
         `);
     }

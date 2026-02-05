@@ -12,6 +12,7 @@ export class WhatsAppService extends EventEmitter {
         this.client = new Client({
             authStrategy: new LocalAuth(),
             puppeteer: {
+                headless: true,
                 args: [
                     '--no-sandbox',
                     '--disable-setuid-sandbox',
@@ -19,8 +20,10 @@ export class WhatsAppService extends EventEmitter {
                     '--disable-accelerated-2d-canvas',
                     '--no-first-run',
                     '--no-zygote', 
+                    '--single-process', 
                     '--disable-gpu'
-                ]
+                ],
+                protocolTimeout: 300000
             }
         });
 
@@ -29,6 +32,10 @@ export class WhatsAppService extends EventEmitter {
 
     public getQr() {
         return this.lastQr;
+    }
+
+    public isReady() {
+        return this.ready;
     }
 
     private pendingReplies: Map<string, NodeJS.Timeout> = new Map();
