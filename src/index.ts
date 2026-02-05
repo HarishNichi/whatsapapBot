@@ -62,10 +62,35 @@ whatsapp.on('message', async (payload: any) => {
 
 // Dummy HTTP Server for Render (Web Services must bind to a port)
 import * as http from 'http';
+import * as QRCode from 'qrcode';
+
 const port = process.env.PORT || 3000;
-http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Personal Agent is alive and running!');
+http.createServer(async (req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    
+    const qr = whatsapp.getQr();
+    
+    if (qr) {
+        try {
+            const url = await QRCode.toDataURL(qr);
+            res.end(`
+                <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;">
+                    <h1>🔗 Connect WhatsApp</h1>
+                    <p>Scan this code linked to your device:</p>
+                    <img src="${url}" style="width:300px;height:300px;border:1px solid #ccc;padding:10px;border-radius:10px;"/>
+                    <p>Refresh if it expires.</p>
+                </div>
+            `);
+        } catch (err) {
+            res.end('Error generating QR code');
+        }
+    } else {
+        res.end(`
+            <div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;">
+                <h1>✅ Agent is Connected & Running!</h1>
+            </div>
+        `);
+    }
 }).listen(port, () => {
     console.log(`[Server] Listening on port ${port} (Required for Render)`);
 });

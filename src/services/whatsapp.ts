@@ -5,6 +5,7 @@ import { EventEmitter } from 'events';
 export class WhatsAppService extends EventEmitter {
     private client: Client;
     private ready: boolean = false;
+    private lastQr: string | null = null;
 
     constructor() {
         super();
@@ -18,11 +19,16 @@ export class WhatsAppService extends EventEmitter {
         this.initialize();
     }
 
+    public getQr() {
+        return this.lastQr;
+    }
+
     private pendingReplies: Map<string, NodeJS.Timeout> = new Map();
 
     private initialize() {
         this.client.on('qr', (qr) => {
             console.log('QR RECEIVED', qr);
+            this.lastQr = qr;
             qrcode.generate(qr, { small: true });
             console.log('Scan the QR code above to log in to WhatsApp.');
         });
