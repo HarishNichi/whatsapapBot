@@ -30,6 +30,16 @@ whatsapp.on('message', async (payload: any) => {
     }
 });
 
+// Dummy HTTP Server for Render (Web Services must bind to a port)
+import * as http from 'http';
+const port = process.env.PORT || 3000;
+http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Personal Agent is alive and running!');
+}).listen(port, () => {
+    console.log(`[Server] Listening on port ${port} (Required for Render)`);
+});
+
 // CLI Interface to change status
 const rl = readline.createInterface({
     input: process.stdin,
