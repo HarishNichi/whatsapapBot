@@ -12,24 +12,7 @@ const whatsapp = new WhatsAppService();
 whatsapp.on('message', async (payload: any) => {
     // payload contains { msg, history }
     const { msg, history } = payload;
-    const chat = await msg.getChat();
-    const contact = await msg.getContact();
-
-    // Check for Commands (from ME)
-    if (msg.fromMe && msg.body.startsWith('/')) {
-        const command = msg.body.toLowerCase();
-        if (command.includes('status busy')) {
-            brain.setUserStatus('busy');
-            await msg.reply('✅ Status set to: BUSY');
-        } else if (command.includes('status available')) {
-            brain.setUserStatus('available');
-            await msg.reply('✅ Status set to: AVAILABLE');
-        } else if (command.includes('status')) {
-             await msg.reply(`ℹ️ Current Status: ${brain.getUserStatus()}`); // Need to add accessor to Brain
-        }
-        return;
-    }
-
+    
     // Check for Commands (from ME)
     if (msg.fromMe && msg.body.startsWith('/')) {
         const command = msg.body.toLowerCase();
@@ -45,19 +28,11 @@ whatsapp.on('message', async (payload: any) => {
         return;
     }
 
-    // Don't reply to groups for safety in MVP
-    if (chat.isGroup) return;
-
-    const reply = await brain.processMessage(
-        'WhatsApp', 
-        contact.pushname || contact.number, 
-        msg.body,
-        history
-    );
-    
-    if (reply) {
-        await msg.reply(reply);
-    }
+    // Process with Brain
+    // Passing msg.from as the username/contact identifier
+    await brain.processMessage(msg, history || [], async (response) => {
+        await msg.reply(response);
+    });
 });
 
 // Dummy HTTP Server for Render (Web Services must bind to a port)

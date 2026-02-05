@@ -1,53 +1,17 @@
-import { Client, LocalAuth } from 'whatsapp-web.js';
+import makeWASocket, { DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion, makeCacheableSignalKeyStore } from '@whiskeysockets/baileys';
+import { Boom } from '@hapi/boom';
 import qrcode from 'qrcode-terminal';
 import { EventEmitter } from 'events';
+import pino from 'pino';
 
 export class WhatsAppService extends EventEmitter {
-    private client: Client;
+    private sock: any;
     private ready: boolean = false;
     private lastQr: string | null = null;
+    private saveCreds: any;
 
     constructor() {
         super();
-        this.client = new Client({
-            authStrategy: new LocalAuth(),
-            puppeteer: {
-                headless: true,
-                args: [
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-accelerated-2d-canvas',
-                    '--no-first-run',
-                    '--no-zygote', 
-                    '--single-process', 
-                    '--disable-gpu',
-                    '--disable-extensions',
-                    '--disable-component-extensions-with-background-pages',
-                    '--disable-default-apps',
-                    '--mute-audio',
-                    '--no-default-browser-check',
-                    '--autoplay-policy=user-gesture-required',
-                    '--disable-background-timer-throttling',
-                    '--disable-backgrounding-occluded-windows',
-                    '--disable-notifications',
-                    '--disable-background-networking',
-                    '--disable-breakpad',
-                    '--disable-component-update',
-                    '--disable-domain-reliability',
-                    '--disable-sync',
-                    '--disable-features=TranslateUI,BlinkGenPropertyTrees',
-                    '--disable-ipc-flooding-protection',
-                    '--disable-renderer-backgrounding'
-                ],
-                protocolTimeout: 300000
-            },
-            webVersionCache: {
-                type: 'remote',
-                remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
-            }
-        });
-
         this.initialize();
     }
 
@@ -59,60 +23,96 @@ export class WhatsAppService extends EventEmitter {
         return this.ready;
     }
 
-    private pendingReplies: Map<string, NodeJS.Timeout> = new Map();
+    private async initialize() {
+        console.log('[WhatsApp] Initializing Baileys...');
+        
+        // Use file-based auth state
+        const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
+        this.saveCreds = saveCreds;
 
-    private initialize() {
-        this.client.on('qr', (qr) => {
-            console.log('QR RECEIVED', qr);
-            this.lastQr = qr;
-            qrcode.generate(qr, { small: true });
-            console.log('Scan the QR code above to log in to WhatsApp.');
+        const { version, isLatest } = await fetchLatestBaileysVersion();
+        console.log(`[WhatsApp] Using WA v${version.join('.')} (isLatest: ${isLatest})`);
+
+        this.sock = makeWASocket({
+            version,
+            logger: pino({ level: 'silent' }) as any,
+            printQRInTerminal: false, // We handle QR manually
+            auth: {
+                creds: state.creds,
+                keys: makeCacheableSignalKeyStore(state.keys, pino({ level: 'silent' }) as any),
+            },
+            generateHighQualityLinkPreview: true,
         });
 
-        this.client.on('ready', () => {
-            console.log('WhatsApp Client is ready!');
-            this.ready = true;
-            this.emit('ready');
-        });
+        // Handle Connection Updates (QR, Connect, Disconnect)
+        this.sock.ev.on('connection.update', (update: any) => {
+            const { connection, lastDisconnect, qr } = update;
 
-        this.client.on('message_create', async (msg) => {
-            // Handle Self-Commands
-            if (msg.fromMe) {
-                if (msg.body.startsWith('/')) {
-                    console.log(`[WhatsApp] Self-Command received: ${msg.body}`);
-                    // Fallthrough to emit
-                } else {
-                    return; // Ignore regular self-messages
-                }
-            } else {
-                console.log(`[WhatsApp] Message received from ${msg.from}`);
+            if (qr) {
+                console.log('QR RECEIVED');
+                this.lastQr = qr;
+                qrcode.generate(qr, { small: true });
+                console.log('Scan the QR code above to log in to WhatsApp.');
             }
-            
-            const chat = await msg.getChat();
-            const history = await chat.fetchMessages({ limit: 10 });
-            
-            // Emit the message AND the history
-            this.emit('message', { msg, history });
+
+            if (connection === 'close') {
+                const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
+                console.log('[WhatsApp] Connection closed. Reconnecting:', shouldReconnect);
+                this.ready = false;
+                if (shouldReconnect) {
+                    this.initialize();
+                } else {
+                    console.log('[WhatsApp] Logged out. Delete auth_info_baileys to re-scan.');
+                }
+            } else if (connection === 'open') {
+                console.log('[WhatsApp] Opened connection! ✅');
+                this.ready = true;
+                this.emit('ready');
+            }
         });
 
+        // Save Credentials
+        this.sock.ev.on('creds.update', this.saveCreds);
 
-        console.log('[WhatsApp] Initializing client...');
-        try {
-            this.client.initialize().then(() => {
-                console.log('[WhatsApp] Client initialize() call resolved.');
-            }).catch(err => {
-                console.error('[WhatsApp] Client initialize() FAILED:', err);
-            });
-        } catch (error) {
-            console.error('[WhatsApp] Unexpected error during initialize:', error);
-        }
+        // Handle Incoming Messages
+        this.sock.ev.on('messages.upsert', async (m: any) => {
+            if (m.type !== 'notify') return;
+            
+            for (const msg of m.messages) {
+                if (!msg.message) continue;
+
+                const isFromMe = msg.key.fromMe;
+                const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
+
+                if (isFromMe) {
+                    if (text.startsWith('/')) {
+                        console.log(`[WhatsApp] Self-Command: ${text}`);
+                    } else {
+                        continue; 
+                    }
+                } else {
+                     console.log(`[WhatsApp] Message from ${msg.key.remoteJid}`);
+                }
+
+                // Emit simplified event for Brain
+                this.emit('message', { 
+                    msg: {
+                        from: msg.key.remoteJid,
+                        body: text,
+                        fromMe: isFromMe,
+                        reply: async (replyText: string) => this.sendMessage(msg.key.remoteJid, replyText)
+                    }, 
+                    history: [] // History fetching is complex in Baileys, omitting for now
+                });
+            }
+        });
     }
 
     public async sendMessage(chatId: string, content: string) {
-        if (!this.ready) {
-            console.warn('WhatsApp not ready yet.');
-            return;
+        if (!this.sock) {
+             console.warn('WhatsApp socket not initialized.');
+             return;
         }
-        await this.client.sendMessage(chatId, content);
+        await this.sock.sendMessage(chatId, { text: content });
     }
 }
